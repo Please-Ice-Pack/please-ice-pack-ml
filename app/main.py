@@ -10,7 +10,7 @@ from PIL import Image
 app = FastAPI()
 # pt_path = '/content/drive/MyDrive/마켓컬리_해커톤/weight/best.pt'
 # model =torch.hub.load('./yolov5', 'custom', path=pt_path, source='local')
-model =torch.hub.load('./', 'custom', path='./runs/train/pet/weights/best.pt', source='local',)
+model =torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
 model.conf = 0.5
 
 @app.post("/files/")

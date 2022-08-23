@@ -13,16 +13,16 @@ from pydantic import BaseModel
 app = FastAPI()
 
 # local test
-model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
-box_meta = pd.read_csv('./meta_data/box_meta.csv')
-ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
-product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
+# model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
+# box_meta = pd.read_csv('./meta_data/box_meta.csv')
+# ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
+# product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
 
 # docker
-# model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
-# box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
-# ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
-# product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
+model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
+box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
+ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
+product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
 
 model.conf = 0.5
 

@@ -13,16 +13,16 @@ from pydantic import BaseModel
 app = FastAPI()
 
 # local test
-# model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
-# box_meta = pd.read_csv('./meta_data/box_meta.csv')
-# ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
-# product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
+model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
+box_meta = pd.read_csv('./meta_data/box_meta.csv')
+ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
+product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
 
 # docker
-model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
-box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
-ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
-product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
+# model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
+# box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
+# ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
+# product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
 
 model.conf = 0.5
 
@@ -109,7 +109,7 @@ async def create_files(item: Item):
     # 이미지 로드 및 제품 인식 - s3 연동 후 진행 예정, 
 #     url = data['imageUrl'] # 이미지
 #     im = read_image_from_s3(url)
-    im = Image.open(r"./sample/9_16.jpg") 
+    im = Image.open(r"./app/sample/9_16.jpg") 
     
     det_raw_results = model(im)
     detect_res = det_raw_results.pandas().xyxy[0].to_json(orient="records")

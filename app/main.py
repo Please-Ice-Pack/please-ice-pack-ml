@@ -2,7 +2,7 @@ from typing import List
 import json
 import pandas as pd
 import torch
-# import boto3
+import boto3
 import io
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import HTMLResponse
@@ -13,18 +13,21 @@ from pydantic import BaseModel
 app = FastAPI()
 
 # local test
-# model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
-# box_meta = pd.read_csv('./meta_data/box_meta.csv')
-# ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
-# product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
+model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
+box_meta = pd.read_csv('./meta_data/box_meta.csv')
+ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
+product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
 
 # docker
-model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
-box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
-ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
-product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
+# model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
+# box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
+# ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
+# product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
 
 model.conf = 0.5
+
+s3 = boto3.resource('s3', region_name='ap-northeast-2')
+bucket = s3.Bucket('bucket-packing-pip-an2')
 
 class Products(BaseModel):
     productId: int
@@ -67,7 +70,7 @@ def box_select(product):
     return box_result
 
 def read_image_from_s3(filename):
-    bucket = s3.Bucket(bucket_name) # bucket_name 필요
+    # bucket = s3.Bucket(bucket_name) # bucket_name 필요
     object = bucket.Object(filename)
     response = object.get()
     file_stream = response['Body']
@@ -94,22 +97,24 @@ async def create_files(item: Item):
       "amount": 2
     }
   ],
-  "imageUrl": "string"
+  "imageUrl": "https://bucket-packing-pip-an2.s3.ap-northeast-2.amazonaws.com/10_4.jpg"
 }
     '''
     result = dict()
     data = jsonable_encoder(item)
     result['orderId'] = data['orderId']
-    result['results'] = []
+    result['order_results'] = []
+    result['detect_results'] = []
     order_list = data['products']
     detect_dict = dict()
     
 #     im = Image.open(io.BytesIO(files[0]))
 
     # 이미지 로드 및 제품 인식 - s3 연동 후 진행 예정, 
-#     url = data['imageUrl'] # 이미지
-#     im = read_image_from_s3(url)
-    im = Image.open(r"./app/sample/9_16.jpg") 
+    url = data['imageUrl'].split('/')[-1] # 이미지
+    im = read_image_from_s3(url)
+    # im = Image.open(r"./sample/9_16.jpg") 
+    # im = Image.open(r"./app/sample/9_16.jpg") 
     
     det_raw_results = model(im)
     detect_res = det_raw_results.pandas().xyxy[0].to_json(orient="records")
@@ -126,20 +131,37 @@ async def create_files(item: Item):
         productId = order_detail['productId']
         amount = order_detail['amount']
         cold_type = int(product_meta[product_meta['code'] == productId]['cold_type'])
-        temp = {"productId": productId,
+        productName = str(product_meta[product_meta['code'] == productId]['name'].iloc[0])
+        temp_order = {
+                "productId": productId,
+                "productName": productName,
                 "amount": amount,
                 'cold_type': cold_type,
-                "isMatched": True}
+                "isMatched": True
+                }
         
         # detect 결과가 order에 있을 경우
         if detect_dict.get(productId):    
-            temp['isMatched'] = False if detect_dict[productId] != amount else True
+            temp_order['isMatched'] = False if detect_dict[productId] != amount else True
         # detect 결과와 다른 경우
         else: 
-            temp['isMatched'] = False
+            temp_order['isMatched'] = False
             
-        result['results'].append(temp)
-        
+        result['order_results'].append(temp_order)
+    
+    for detect_detail in detect_dict:
+        temp_detect = {
+                "productId": detect_detail,
+                "productName": str(product_meta[product_meta['code'] == detect_detail]['name'].iloc[0]),
+                "amount": detect_dict[detect_detail],
+                'cold_type': int(product_meta[product_meta['code'] == detect_detail]['cold_type']),
+        }
+        result['detect_results'].append(temp_detect)
+    
+    # 제품 번호별 정렬
+    result['order_results'] = sorted(result['order_results'], key = lambda x: (x['isMatched'],x['productId']))
+    result['detect_results'] = sorted(result['detect_results'], key = lambda x: x['productId'])
+
     recommendedPackingOption = box_select(detect_dict)
     result['recommendedPackingOption'] = recommendedPackingOption
 

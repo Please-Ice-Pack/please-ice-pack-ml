@@ -13,16 +13,16 @@ from pydantic import BaseModel
 app = FastAPI()
 
 # local test
-model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
-box_meta = pd.read_csv('./meta_data/box_meta.csv')
-ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
-product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
+# model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
+# box_meta = pd.read_csv('./meta_data/box_meta.csv')
+# ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
+# product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
 
 # docker
-# model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
-# box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
-# ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
-# product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
+model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
+box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
+ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
+product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
 
 model.conf = 0.5
 
@@ -43,7 +43,7 @@ def box_select(product):
     # 냉장, 냉동 제품 별 부피 계산
     for i in product:
         fro_size, ref_size = 0, 0
-        box_result, ice_result = dict(), dict()
+        box_result, ice_result = dict(), list()
         temp = product_meta[product_meta['code'] == int(i)]
         if int(temp['cold_type']) == 2:
             fro_size += temp['width'] * temp['height'] * temp['length'] * product[i]
@@ -61,16 +61,17 @@ def box_select(product):
             temp_size = temp['width'] * temp['height'] * temp['length']
             if total_size < temp_size:
                 temp_dict = temp[['box_type','box_size']].to_dict()
-                temp_dict['refrigerants_id'] = 'Ice_pack' if name == 'refrigerated' else 'Dry_ice'
-                temp_dict['refrigerants_size'] = 2 if name == 'refrigerated' and temp_size > 6000 else 1
-                temp_dict['refrigerants_amount'] = int(temp_size) // 3000
+                temp_ice = dict()
+                temp_ice['refrigerant_id'] = 'Ice_pack' if name == 'refrigerated' else 'Dry_ice'
+                temp_ice['refrigerant_size'] = 2 if name == 'refrigerated' and temp_size > 6000 else 1
+                temp_ice['refrigerant_amount'] = int(temp_size) // 3000
                 box_result[name] = temp_dict
+                ice_result.append(temp_ice)
                 break
 
-    return box_result
+    return box_result, ice_result
 
 def read_image_from_s3(filename):
-    # bucket = s3.Bucket(bucket_name) # bucket_name 필요
     object = bucket.Object(filename)
     response = object.get()
     file_stream = response['Body']
@@ -108,14 +109,9 @@ async def create_files(item: Item):
     order_list = data['products']
     detect_dict = dict()
     
-#     im = Image.open(io.BytesIO(files[0]))
-
-    # 이미지 로드 및 제품 인식 - s3 연동 후 진행 예정, 
+    # 이미지 로드 및 제품 인식 
     url = data['imageUrl'].split('/')[-1] # 이미지
     im = read_image_from_s3(url)
-    # im = Image.open(r"./sample/9_16.jpg") 
-    # im = Image.open(r"./app/sample/9_16.jpg") 
-    
     det_raw_results = model(im)
     detect_res = det_raw_results.pandas().xyxy[0].to_json(orient="records")
     detect_res = json.loads(detect_res)
@@ -162,8 +158,9 @@ async def create_files(item: Item):
     result['order_results'] = sorted(result['order_results'], key = lambda x: (x['isMatched'],x['productId']))
     result['detect_results'] = sorted(result['detect_results'], key = lambda x: x['productId'])
 
-    recommendedPackingOption = box_select(detect_dict)
+    recommendedPackingOption, refrigerants = box_select(detect_dict)
     result['recommendedPackingOption'] = recommendedPackingOption
+    result['refrigerants'] = refrigerants
 
     return result
 

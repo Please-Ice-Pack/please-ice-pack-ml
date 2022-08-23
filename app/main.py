@@ -125,6 +125,7 @@ async def create_files(item: Item):
     # 인식 제품과 주문 제품 매치 여부 확인
     order_dict = dict()
     for order_detail in order_list:
+        result['orderMatched'] = True
         productId = order_detail['productId']
         amount = order_detail['amount']
         order_dict[productId] = amount
@@ -141,9 +142,11 @@ async def create_files(item: Item):
         # detect 결과가 order에 있을 경우
         if detect_dict.get(productId):    
             temp_order['isMatched'] = False if detect_dict[productId] != amount else True
+            result['orderMatched'] = False if detect_dict[productId] != amount else True
         # detect 결과와 다른 경우
         else: 
             temp_order['isMatched'] = False
+            result['orderMatched'] = False
             
         result['order_results'].append(temp_order)
     

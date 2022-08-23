@@ -13,16 +13,16 @@ from pydantic import BaseModel
 app = FastAPI()
 
 # local test
-# model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
-# box_meta = pd.read_csv('./meta_data/box_meta.csv')
-# ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
-# product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
+model = torch.hub.load('./', 'custom', path='./weight/best.pt', source='local',)
+box_meta = pd.read_csv('./meta_data/box_meta.csv')
+ice_meta = pd.read_csv('./meta_data/ice_meta.csv')
+product_meta = pd.read_csv('./meta_data/product_meta.csv', encoding='cp949')
 
 # docker
-model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
-box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
-ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
-product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
+# model = torch.hub.load('./app', 'custom', path='./app/weight/best.pt', source='local',)
+# box_meta = pd.read_csv('./app/meta_data/box_meta.csv')
+# ice_meta = pd.read_csv('./app/meta_data/ice_meta.csv')
+# product_meta = pd.read_csv('./app/meta_data/product_meta.csv', encoding='cp949')
 
 model.conf = 0.5
 
@@ -35,10 +35,11 @@ class Products(BaseModel):
 
 class Item(BaseModel):
     orderId: int
+    isPurpleBox: bool
     products: List[Products]
     imageUrl: str
         
-def box_select(product):
+def box_select(product, isPurpleBox):
     
     # 냉장, 냉동 제품 별 부피 계산
     for i in product:
@@ -68,7 +69,9 @@ def box_select(product):
                 box_result[name] = temp_dict
                 ice_result.append(temp_ice)
                 break
-
+    if isPurpleBox:
+        box_result = box_meta[box_meta['box_type'] == 'Purple'][['box_type','box_size']].iloc[0].to_dict()
+        
     return box_result, ice_result
 
 def read_image_from_s3(filename):
@@ -84,6 +87,7 @@ async def create_files(item: Item):
     swagger test request body
 {
   "orderId": 0,
+  "isPurpleBox": true,
   "products": [
     {
       "productId": 4,
@@ -104,9 +108,12 @@ async def create_files(item: Item):
     result = dict()
     data = jsonable_encoder(item)
     result['orderId'] = data['orderId']
+    result['orderMatched'] = True
+    
     result['order_results'] = []
     result['detect_results'] = []
     order_list = data['products']
+    isPurpleBox = data['isPurpleBox']
     detect_dict = dict()
     
     # 이미지 로드 및 제품 인식 
@@ -125,7 +132,6 @@ async def create_files(item: Item):
     # 인식 제품과 주문 제품 매치 여부 확인
     order_dict = dict()
     for order_detail in order_list:
-        result['orderMatched'] = True
         productId = order_detail['productId']
         amount = order_detail['amount']
         order_dict[productId] = amount
@@ -140,9 +146,10 @@ async def create_files(item: Item):
                 }
         
         # detect 결과가 order에 있을 경우
-        if detect_dict.get(productId):    
-            temp_order['isMatched'] = False if detect_dict[productId] != amount else True
-            result['orderMatched'] = False if detect_dict[productId] != amount else True
+        if detect_dict.get(productId):
+            if detect_dict[productId] != amount:
+                temp_order['isMatched'] = False
+                result['orderMatched'] = False
         # detect 결과와 다른 경우
         else: 
             temp_order['isMatched'] = False
@@ -163,7 +170,7 @@ async def create_files(item: Item):
     result['order_results'] = sorted(result['order_results'], key = lambda x: (x['isMatched'],x['productId']))
     result['detect_results'] = sorted(result['detect_results'], key = lambda x: x['productId'])
 
-    recommendedPackingOption, refrigerants = box_select(order_dict)
+    recommendedPackingOption, refrigerants = box_select(order_dict, isPurpleBox)
     result['recommendedPackingOption'] = recommendedPackingOption
     result['refrigerants'] = refrigerants
 

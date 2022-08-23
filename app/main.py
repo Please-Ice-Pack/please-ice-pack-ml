@@ -123,7 +123,7 @@ async def create_files(item: Item):
         else: detect_dict[class_] = 1
     
     # 인식 제품과 주문 제품 매치 여부 확인
-    order_dict = dict{} 
+    order_dict = dict()
     for order_detail in order_list:
         productId = order_detail['productId']
         amount = order_detail['amount']

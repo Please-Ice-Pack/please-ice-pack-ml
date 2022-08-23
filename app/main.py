@@ -123,9 +123,11 @@ async def create_files(item: Item):
         else: detect_dict[class_] = 1
     
     # 인식 제품과 주문 제품 매치 여부 확인
+    order_dict = dict{} 
     for order_detail in order_list:
         productId = order_detail['productId']
         amount = order_detail['amount']
+        order_dict[productId] = amount
         cold_type = int(product_meta[product_meta['code'] == productId]['cold_type'])
         productName = str(product_meta[product_meta['code'] == productId]['name'].iloc[0])
         temp_order = {
@@ -158,7 +160,7 @@ async def create_files(item: Item):
     result['order_results'] = sorted(result['order_results'], key = lambda x: (x['isMatched'],x['productId']))
     result['detect_results'] = sorted(result['detect_results'], key = lambda x: x['productId'])
 
-    recommendedPackingOption, refrigerants = box_select(detect_dict)
+    recommendedPackingOption, refrigerants = box_select(order_dict)
     result['recommendedPackingOption'] = recommendedPackingOption
     result['refrigerants'] = refrigerants
 

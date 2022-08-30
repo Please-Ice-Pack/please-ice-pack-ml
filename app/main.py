@@ -43,7 +43,8 @@ def box_select(product, isPurpleBox):
     fro_size, ref_size = 0, 0
     # 냉장, 냉동 제품 별 부피 계산
     for i in product:
-        box_result, ice_result = dict(), list()
+#         box_result, ice_result = dict(), list()
+        box_result, ice_result = list(), list()
         temp = product_meta[product_meta['code'] == int(i)]
         temp_size = int(temp['width'] * temp['height'] * temp['length'] * product[i])
         if int(temp['cold_type']) == 2:
@@ -57,22 +58,29 @@ def box_select(product, isPurpleBox):
     # 박스 및 냉매제 선택 
     for total_size, name in zip([ref_size, fro_size],['refrigerated','frozen']):
         if total_size == 0:
-            box_result[name] = None
+#             box_result[name] = None
             continue
         for i in range(len(box_meta)):
             temp = box_meta.loc[i]
             temp_size = temp['width'] * temp['height'] * temp['length']
             if total_size < temp_size:
                 temp_dict = temp[['box_type','box_size']].to_dict()
+                temp_dict['box_size'] = str(temp_dict['box_size'])
+                if name == 'refrigerated':
+                    temp_dict['box_flag'] = 'REF'
+                else:
+                    temp_dict['box_flag'] = 'FRE'
                 temp_ice = dict()
-                temp_ice['refrigerant_id'] = 'Ice_pack' if name == 'refrigerated' else 'Dry_ice'
-                temp_ice['refrigerant_size'] = 2 if name == 'refrigerated' and temp_size > 6000 else 1
+                temp_ice['refrigerant_type'] = 'ICE_PACK' if name == 'refrigerated' else 'DRY_ICE'
+                temp_ice['refrigerant_size'] = '2' if name == 'refrigerated' and temp_size > 6000 else '1'
                 temp_ice['refrigerant_amount'] = int(temp_size) // 3000
-                box_result[name] = temp_dict
+#                 box_result[name] = temp_dict
+                box_result.append(temp_dict)
                 ice_result.append(temp_ice)
                 break
     if isPurpleBox:
-        box_result = box_meta[box_meta['box_type'] == 'Purple'][['box_type','box_size']].iloc[0].to_dict()
+        box_result = [{'box_type':'PURPLE','box_size':'1','box_flag':'PUR'}]
+#         box_meta[box_meta['box_type'] == 'PURPLE'][['box_type','box_size']].iloc[0].to_dict()
         
     return box_result, ice_result
 

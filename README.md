@@ -29,11 +29,17 @@
 - FastAPI  
   ML api server 구축을 위해 사용하였습니다.
 
-## 🛠 DEV Server
-https://api.pip-kurly.com/
+## 🛠 DEV API Server
+https://api.pip-kurly.com/ping
 
-## 💚 Swagger
+## 💚 API Server Swagger
 https://api.pip-kurly.com/swagger-ui/index.html
+
+## 🛠 DEV ML Server
+https://ml.pip-kurly.com/
+
+## 💚 ML Server Swagger
+https://ml.pip-kurly.com/docs
 
 ## 🕍 아키텍쳐
 

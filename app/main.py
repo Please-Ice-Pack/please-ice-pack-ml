@@ -40,18 +40,20 @@ class Item(BaseModel):
     imageUrl: str
         
 def box_select(product, isPurpleBox):
-    
+    fro_size, ref_size = 0, 0
     # 냉장, 냉동 제품 별 부피 계산
     for i in product:
-        fro_size, ref_size = 0, 0
         box_result, ice_result = dict(), list()
         temp = product_meta[product_meta['code'] == int(i)]
+        temp_size = int(temp['width'] * temp['height'] * temp['length'] * product[i])
         if int(temp['cold_type']) == 2:
-            fro_size += temp['width'] * temp['height'] * temp['length'] * product[i]
+            fro_size += temp_size
         else:
-            ref_size += temp['width'] * temp['height'] * temp['length'] * product[i]
-    fro_size, ref_size = int(fro_size * 2), int(ref_size * 2)
+            ref_size += temp_size
+    fro_size = int(fro_size * 2)
+    ref_size = int(ref_size * 2)
     
+    print('냉동 사이즈:',fro_size, '냉장 사이즈:',ref_size)
     # 박스 및 냉매제 선택 
     for total_size, name in zip([ref_size, fro_size],['refrigerated','frozen']):
         if total_size == 0:
@@ -169,21 +171,10 @@ async def create_files(item: Item):
     # 제품 번호별 정렬
     result['order_results'] = sorted(result['order_results'], key = lambda x: (x['isMatched'],x['productId']))
     result['detect_results'] = sorted(result['detect_results'], key = lambda x: x['productId'])
-
+    
+    print('주문내역:',order_dict)
     recommendedPackingOption, refrigerants = box_select(order_dict, isPurpleBox)
     result['recommendedPackingOption'] = recommendedPackingOption
     result['refrigerants'] = refrigerants
 
     return result
-
-@app.get("/")
-async def main():
-    content = """
-<body>
-<form action="/files/" enctype="multipart/form-data" method="post">
-<input name="files" type="file" multiple>
-<input type="submit">
-</form>
-</body>
-    """
-    return HTMLResponse(content=content)
